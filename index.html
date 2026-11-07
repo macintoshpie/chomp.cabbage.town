@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1a1e3a">
+<title>Chomp Stadium</title>
+<style>
+  @font-face { font-family: PS2P; src: url(press-start-2p.woff2) format('woff2'); }
+  :root { --fire: #f08030; --water: #6890f0; --grass: #78c850; --ink: #202020; --paper: #f8f8f0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #1a1e3a; color: var(--paper); font-family: PS2P, monospace; -webkit-font-smoothing: none; }
+  body { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; padding: 16px; padding-bottom: max(16px, env(safe-area-inset-bottom)); image-rendering: pixelated; }
+  h1 { font-size: 18px; text-align: center; margin: 18px 0 6px; line-height: 1.5; }
+  .sub { font-size: 10px; opacity: .8; text-align: center; line-height: 1.6; margin-bottom: 18px; }
+  .screen { display: none; width: 100%; max-width: 420px; flex-direction: column; align-items: center; }
+  .screen.on { display: flex; }
+  .box { background: var(--paper); color: var(--ink); border: 4px solid var(--ink); box-shadow: 0 0 0 4px var(--paper); width: 100%; padding: 14px; font-size: 11px; line-height: 1.7; margin: 10px 0; }
+  .teams { display: grid; grid-template-columns: 1fr; gap: 14px; width: 100%; margin-top: 8px; }
+  .team { display: flex; align-items: center; gap: 14px; border: 4px solid var(--ink); background: var(--paper); color: var(--ink); padding: 12px 14px; font-family: inherit; font-size: 16px; text-align: left; cursor: pointer; box-shadow: 0 0 0 4px var(--paper); }
+  .team img { width: 72px; height: 72px; image-rendering: pixelated; }
+  .team:active { transform: translate(2px, 2px); }
+  .team.fire { border-color: var(--fire); } .team.water { border-color: var(--water); } .team.grass { border-color: var(--grass); }
+  .team small { display: block; font-size: 8px; opacity: .7; margin-top: 6px; }
+  #cam { position: relative; width: 100%; aspect-ratio: 3 / 4; background: #000; overflow: hidden; border: 4px solid var(--paper); }
+  #cam video, #cam canvas, #cam img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  #cam video { transform: scaleX(-1); }
+  #cam .frame { position: absolute; inset: 0; border: 3px dashed rgba(255,255,255,.5); margin: 12%; border-radius: 50% 50% 46% 46%; pointer-events: none; }
+  .big { display: block; width: 100%; text-align: center; text-decoration: none; margin-top: 14px; padding: 16px; font-family: inherit; font-size: 14px; background: #ffe34d; color: var(--ink); border: 4px solid var(--ink); box-shadow: 0 0 0 4px var(--paper); cursor: pointer; }
+  .big.alt { background: var(--paper); }
+  .big:disabled { opacity: .5; }
+  input { width: 100%; font-family: inherit; font-size: 12px; padding: 12px; border: 4px solid var(--ink); background: #fff; color: var(--ink); margin-top: 8px; }
+  label { font-size: 9px; opacity: .8; margin-top: 12px; display: block; width: 100%; }
+  .ball { width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(#e83030 0 46%, #202020 46% 54%, #f8f8f0 54%); border: 4px solid #202020; position: relative; margin: 30px auto; animation: wobble 1.1s ease-in-out infinite; }
+  .ball::after { content: ''; position: absolute; width: 18px; height: 18px; border-radius: 50%; background: #f8f8f0; border: 4px solid #202020; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+  @keyframes wobble { 0%, 100% { transform: rotate(-14deg); } 50% { transform: rotate(14deg); } }
+  .tip { font-size: 9px; opacity: .8; text-align: center; line-height: 1.8; min-height: 40px; }
+  .reveal { width: 100%; max-width: 360px; aspect-ratio: 1; background: radial-gradient(circle, #2a2e5a, #1a1e3a 70%); border: 4px solid var(--paper); display: flex; align-items: center; justify-content: center; margin-top: 10px; }
+  .reveal img { max-width: 88%; max-height: 88%; image-rendering: pixelated; animation: pop .6s cubic-bezier(.2, 1.6, .4, 1); }
+  @keyframes pop { from { transform: scale(0); } to { transform: scale(1); } }
+  .badge { display: inline-block; padding: 4px 8px; font-size: 9px; color: var(--ink); margin-left: 8px; }
+  .err { color: #ff5c5c; font-size: 9px; line-height: 1.7; text-align: center; margin-top: 10px; }
+  .logo { width: 44px; margin-top: 6px; opacity: .9; }
+</style>
+</head>
+<body>
+<img class="logo" src="the-cabbage.png" alt="">
+<h1>CHOMP STADIUM</h1>
+
+<section id="s-team" class="screen on">
+  <div class="sub">pick your starter.<br>then take a selfie.<br>then look at the big screen.</div>
+  <div class="teams">
+    <button class="team fire" data-team="fire"><img src="fire.png" alt=""><span>FIRE<small>beats grass</small></span></button>
+    <button class="team water" data-team="water"><img src="water.png" alt=""><span>WATER<small>beats fire</small></span></button>
+    <button class="team grass" data-team="grass"><img src="grass.png" alt=""><span>GRASS<small>beats water</small></span></button>
+  </div>
+</section>
+
+<section id="s-cam" class="screen">
+  <div id="cam"><video id="video" autoplay playsinline muted></video><canvas id="shot"></canvas><div class="frame"></div></div>
+  <button class="big" id="snap">SNAP</button>
+  <div id="after" style="display:none;width:100%">
+    <label for="nick">TRAINER NAME (optional)</label>
+    <input id="nick" maxlength="24" autocomplete="off" autocapitalize="characters">
+    <button class="big" id="send">SEND IT</button>
+    <button class="big alt" id="retake">RETAKE</button>
+  </div>
+  <div class="err" id="camerr"></div>
+</section>
+
+<section id="s-wait" class="screen">
+  <div class="box">A wild <span id="w-team"></span>-type is being caught... hang tight, this takes about a minute.</div>
+  <div class="ball"></div>
+  <div class="tip" id="tip"></div>
+</section>
+
+<section id="s-done" class="screen">
+  <div class="reveal"><img id="sprite" alt=""></div>
+  <div class="box"><b id="d-name"></b><span class="badge" id="d-badge"></span><br>trainer <span id="d-nick"></span><br><br>you're in the stadium. go find yourself on the big screen.</div>
+  <a class="big" id="save" target="_blank" rel="noopener">OPEN IMAGE (hold to save)</a>
+  <button class="big alt" id="again">NEW TRAINER</button>
+</section>
+
+<script>
+const API = new URLSearchParams(location.search).get('api') || 'https://shed.cabbage.town';
+const BUCKET = new URLSearchParams(location.search).get('bucket') || 'https://cabbagetown.nyc3.digitaloceanspaces.com';
+const $ = id => document.getElementById(id);
+const show = id => { document.querySelectorAll('.screen').forEach(s => s.classList.remove('on')); $(id).classList.add('on'); };
+const TIPS = ['fire beats grass. grass beats water. water beats fire.', 'new trainers jump the queue for the next battle.', 'look for yourself in the stands between battles.',
+  'the team with the most wins at the end gets... bragging rights.', 'critical hits happen. nothing you can do about it.', 'team rocket is running the decks tonight.'];
+const ADJ = ['sleepy','bouncy','fuzzy','grumpy','sneaky','wobbly','crunchy','spicy','toasty','dizzy','frosty','jolly','mellow','perky','zesty','breezy','chunky','peppy','silky','wiggly'];
+const NOUN = ['cabbage','sprout','turnip','radish','kale','chard','endive','arugula','kohlrabi','fennel','parsnip','rutabaga','celery','broccoli','bokchoy','collard','radicchio','shallot','scallion','daikon'];
+const COLORS = { fire: '#f08030', water: '#6890f0', grass: '#78c850' };
+let team = null, blob = null, stream = null;
+
+// Returning trainer: show their card instead of signing up again.
+const saved = JSON.parse(localStorage.getItem('chomp') || 'null');
+if (saved && saved.id) poll(saved.id, true);
+
+document.querySelectorAll('.team').forEach(b => b.addEventListener('click', async () => {
+  team = b.dataset.team;
+  show('s-cam');
+  $('nick').value = `${ADJ[Math.random() * ADJ.length | 0]} ${NOUN[Math.random() * NOUN.length | 0]}`.toUpperCase();
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 1280 } }, audio: false });
+    $('video').srcObject = stream;
+  } catch (e) { $('camerr').textContent = 'camera blocked. allow the camera and reload.'; }
+}));
+
+$('snap').addEventListener('click', () => {
+  const v = $('video'), c = $('shot');
+  // Square-ish crop from the middle of the video, mirrored like the preview.
+  const side = Math.min(v.videoWidth, v.videoHeight), sx = (v.videoWidth - side) / 2, sy = (v.videoHeight - side) / 2;
+  if (!side) { $('camerr').textContent = 'camera not ready yet'; return; }
+  c.width = 1024; c.height = 1024;
+  const g = c.getContext('2d'); g.translate(1024, 0); g.scale(-1, 1); g.drawImage(v, sx, sy, side, side, 0, 0, 1024, 1024);
+  c.style.display = 'block'; v.style.display = 'none';
+  c.toBlob(b => { blob = b; }, 'image/jpeg', 0.9);
+  $('snap').style.display = 'none'; $('after').style.display = 'block';
+});
+$('retake').addEventListener('click', () => { $('shot').style.display = 'none'; $('video').style.display = 'block'; $('snap').style.display = 'block'; $('after').style.display = 'none'; blob = null; });
+
+$('send').addEventListener('click', async () => {
+  if (!blob) return;
+  $('send').disabled = true; $('send').textContent = 'SENDING...';
+  const fd = new FormData();
+  fd.append('image', blob, 'selfie.jpg'); fd.append('team', team); fd.append('nick', $('nick').value.trim());
+  try {
+    const r = await fetch(`${API}/api/chomp`, { method: 'POST', body: fd });
+    if (!r.ok) throw new Error(await r.text());
+    const { id } = await r.json();
+    localStorage.setItem('chomp', JSON.stringify({ id, team }));
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    $('w-team').textContent = team.toUpperCase();
+    show('s-wait'); tips();
+    poll(id);
+  } catch (e) { $('camerr').textContent = 'upload failed: ' + e.message; $('send').disabled = false; $('send').textContent = 'SEND IT'; }
+});
+
+let tipTimer;
+function tips() { let i = Math.random() * TIPS.length | 0; const t = () => { $('tip').textContent = TIPS[i++ % TIPS.length]; }; t(); clearInterval(tipTimer); tipTimer = setInterval(t, 5000); }
+
+async function poll(id, quiet) {
+  for (let i = 0; i < 90; i++) {
+    try {
+      const r = await fetch(`${BUCKET}/chomp/${id}.json?t=${Date.now()}`, { cache: 'no-store' });
+      if (r.ok) {
+        const rec = await r.json();
+        if (rec.status === 'done' && rec.sprite) return reveal(rec);
+        if (rec.status === 'failed') return fallback(rec);
+        if (quiet) { show('s-wait'); $('w-team').textContent = (rec.team || '').toUpperCase(); tips(); quiet = false; }
+      } else if (quiet) { localStorage.removeItem('chomp'); return; }
+    } catch (e) { /* keep polling */ }
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  fallback({ team, nick: $('nick').value });
+}
+function reveal(rec) {
+  clearInterval(tipTimer);
+  const url = `${BUCKET}/${rec.sprite}`;
+  $('sprite').src = url; $('save').href = url;
+  $('d-name').textContent = rec.name || 'YOUR POKEMON';
+  $('d-badge').textContent = rec.team.toUpperCase(); $('d-badge').style.background = COLORS[rec.team];
+  $('d-nick').textContent = rec.nick || 'ANONYMOUS';
+  show('s-done');
+}
+function fallback(rec) {
+  clearInterval(tipTimer);
+  $('sprite').src = `${rec.team}.png`; $('save').style.display = 'none';
+  $('d-name').textContent = 'A WILD TRAINER'; $('d-badge').textContent = (rec.team || '').toUpperCase(); $('d-badge').style.background = COLORS[rec.team] || '#aaa';
+  $('d-nick').textContent = rec.nick || 'ANONYMOUS';
+  show('s-done');
+}
+$('again').addEventListener('click', () => { localStorage.removeItem('chomp'); location.reload(); });
+</script>
+</body>
+</html>
